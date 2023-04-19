@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="b1e6cf62-7101-48f9-bcc9-4f48744159cc" name="localhost" url="http://localhost">
+        <fileTransfer mountedRoot="C:\Users\Adomas\Desktop\bakalauras\my-project" accessType="MOUNT" port="0" />
+      </webServer>
+    </option>
+  </component>
+</project>

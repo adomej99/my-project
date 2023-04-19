@@ -3,6 +3,8 @@
 namespace App\Entity;
 
 use App\Repository\UserRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -26,6 +28,50 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      */
     #[ORM\Column]
     private ?string $password = null;
+
+    #[ORM\Column]
+    private string $email;
+
+    #[ORM\OneToMany(mappedBy: 'lendedTo', targetEntity: Book::class)]
+    private Collection $books;
+
+    #[ORM\OneToMany(mappedBy: 'owner', targetEntity: Book::class, orphanRemoval: true)]
+    private Collection $ownedBooks;
+
+    #[ORM\OneToMany(mappedBy: 'requestedBy', targetEntity: BookRequest::class, orphanRemoval: true)]
+    private Collection $bookRequests;
+
+    #[ORM\OneToMany(mappedBy: 'user', targetEntity: UserReview::class, orphanRemoval: true)]
+    private Collection $userReviews;
+
+    #[ORM\Column(nullable: true)]
+    private ?float $rating = null;
+
+    public function __construct()
+    {
+        $this->books = new ArrayCollection();
+        $this->ownedBooks = new ArrayCollection();
+        $this->bookRequests = new ArrayCollection();
+        $this->userReviews = new ArrayCollection();
+    }
+
+    /**
+     * @return string
+     */
+    public function getEmail(): string
+    {
+        return $this->email;
+    }
+
+    /**
+     * @param string $email
+     * @return User
+     */
+    public function setEmail(string $email): User
+    {
+        $this->email = $email;
+        return $this;
+    }
 
     public function getId(): ?int
     {
@@ -95,5 +141,137 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         // If you store any temporary, sensitive data on the user, clear it here
         // $this->plainPassword = null;
+    }
+
+    /**
+     * @return Collection<int, Book>
+     */
+    public function getBooks(): Collection
+    {
+        return $this->books;
+    }
+
+    public function addBook(Book $book): self
+    {
+        if (!$this->books->contains($book)) {
+            $this->books->add($book);
+            $book->setLendedTo($this);
+        }
+
+        return $this;
+    }
+
+    public function removeBook(Book $book): self
+    {
+        if ($this->books->removeElement($book)) {
+            // set the owning side to null (unless already changed)
+            if ($book->getLendedTo() === $this) {
+                $book->setLendedTo(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Book>
+     */
+    public function getOwnedBooks(): Collection
+    {
+        return $this->ownedBooks;
+    }
+
+    public function addOwnedBook(Book $ownedBook): self
+    {
+        if (!$this->ownedBooks->contains($ownedBook)) {
+            $this->ownedBooks->add($ownedBook);
+            $ownedBook->setOwner($this);
+        }
+
+        return $this;
+    }
+
+    public function removeOwnedBook(Book $ownedBook): self
+    {
+        if ($this->ownedBooks->removeElement($ownedBook)) {
+            // set the owning side to null (unless already changed)
+            if ($ownedBook->getOwner() === $this) {
+                $ownedBook->setOwner(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, BookRequest>
+     */
+    public function getBookRequests(): Collection
+    {
+        return $this->bookRequests;
+    }
+
+    public function addBookRequest(BookRequest $bookRequest): self
+    {
+        if (!$this->bookRequests->contains($bookRequest)) {
+            $this->bookRequests->add($bookRequest);
+            $bookRequest->setRequestedBy($this);
+        }
+
+        return $this;
+    }
+
+    public function removeBookRequest(BookRequest $bookRequest): self
+    {
+        if ($this->bookRequests->removeElement($bookRequest)) {
+            // set the owning side to null (unless already changed)
+            if ($bookRequest->getRequestedBy() === $this) {
+                $bookRequest->setRequestedBy(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, UserReview>
+     */
+    public function getUserReviews(): Collection
+    {
+        return $this->userReviews;
+    }
+
+    public function addUserReview(UserReview $userReview): self
+    {
+        if (!$this->userReviews->contains($userReview)) {
+            $this->userReviews->add($userReview);
+            $userReview->setUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removeUserReview(UserReview $userReview): self
+    {
+        if ($this->userReviews->removeElement($userReview)) {
+            // set the owning side to null (unless already changed)
+            if ($userReview->getUser() === $this) {
+                $userReview->setUser(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function getRating(): ?float
+    {
+        return $this->rating;
+    }
+
+    public function setRating(?float $rating): self
+    {
+        $this->rating = $rating;
+
+        return $this;
     }
 }

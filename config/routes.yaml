@@ -1,3 +1,113 @@
 controllers:
     resource: ../src/Controller/
     type: attribute
+
+create_user:
+    path: /register
+    controller: App\Controller\RegistrationController::register
+    methods: ['POST']
+    defaults:
+        _format: json
+
+login:
+    path: /login
+    controller: App\Controller\SecurityController::login
+    methods: ['POST']
+    defaults:
+        _format: json
+
+add_book:
+    path: /books/add_book
+    controller: App\Controller\BookController::addBook
+    methods: ['POST']
+    defaults:
+        _format: json
+
+get_books:
+    path: /books
+    controller: App\Controller\BookController::getBooks
+    methods: ['GET']
+    defaults:
+        _format: json
+
+book_history:
+    path: /books/{id}/history
+    controller: App\Controller\BookController::getBookHistory
+    methods: [GET]
+    requirements:
+        id: '\d+'
+
+book_remove:
+    path: /books/{id}
+    controller: App\Controller\BookController::removeBook
+    methods: [ POST ]
+    requirements:
+        id: '\d+'
+
+book_update:
+    path: /books/{id}
+    controller: App\Controller\BookController::updateBook
+    methods: [ PUT ]
+    requirements:
+        id: '\d+'
+
+book_lend_list:
+    path: /books/available
+    controller: App\Controller\BookController::getAvailableBooks
+    methods: ['GET']
+    defaults:
+        _format: json
+
+book_lend_request:
+    path: /books/available/{id}
+    controller: App\Controller\BookController::requestBook
+    methods: [ POST ]
+    requirements:
+        id: '\d+'
+
+book_request_list:
+    path: /books/requests
+    controller: App\Controller\BookController::getBookRequests
+    methods: ['GET']
+    defaults:
+        _format: json
+
+book_lend_request_accept:
+    path: /books/requests/{id}/accept
+    controller: App\Controller\BookController::acceptRequest
+    methods: [ POST ]
+    requirements:
+        id: '\d+'
+
+book_lend_request_decline:
+    path: /books/requests/{id}/decline
+    controller: App\Controller\BookController::declineRequest
+    methods: [ POST ]
+    requirements:
+        id: '\d+'
+
+book_lent:
+    path: /books/lent
+    controller: App\Controller\BookController::getLentBooks
+    methods: ['GET']
+    defaults:
+        _format: json
+
+book_lent_return:
+    path: /books/lent/{id}/return
+    controller: App\Controller\BookController::returnBook
+    methods: [ POST ]
+    requirements:
+        id: '\d+'
+
+book_returned:
+    path: /books/returned
+    controller: App\Controller\BookController::getReturnedBooks
+    methods: ['GET']
+    defaults:
+        _format: json
+
+book_return_accept:
+    path: /books/lent/{id_book}/{id_user}/{id_request}/accept
+    controller: App\Controller\BookController::acceptRequest
+    methods: [ POST ]
