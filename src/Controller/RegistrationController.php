@@ -32,6 +32,14 @@ class RegistrationController extends AbstractController
 
         $user->setUsername($content['username']);
         $user->setEmail($content['email']);
+        $user->setRegion($content['region']);
+        $user->setNumber($content['phone_number']);
+        $user->setCity($content['city']);
+        $user->setOtherContacts($content['other_contacts']);
+
+        $user->setRoles(['ROLE_USER']);
+
+        $user->setIsActive(1);
 
         $entityManager->persist($user);
         $entityManager->flush();

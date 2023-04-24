@@ -11,6 +11,7 @@ use App\Entity\UserReview;
 use Doctrine\ORM\EntityManagerInterface;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\ParamConverter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -23,6 +24,7 @@ class BookController extends AbstractController
     {
         $book = new Book();
         $content = json_decode($request->getContent(), true);
+        // Todo: get owner from usersession
         $owner = $entityManager->getRepository(User::class)->find($content['userId']);
 
         $book->setTitle($content['title']);
@@ -47,21 +49,101 @@ class BookController extends AbstractController
         return $this->json(['message' => 'User created successfully']);
     }
 
-    #[Route('/books/books', name: 'get_books')]
+    #[Route('/books/add_book_manual', name: 'add_book_manual')]
+    public function addBookManual(Request $request, EntityManagerInterface $entityManager): JsonResponse
+    {
+        // Get the data sent from the front-end
+        $data = $request->request->all();
+
+//        return new JsonResponse(['message' => $data]);
+
+        // Create a new Book entity and set its properties
+        $book = new Book();
+        $book->setTitle($data['title']);
+        $book->setAuthor($data['author']);
+        $book->setDescription($data['description']);
+
+        // Upload the image and save its path to the database
+//        $file = $request->files->get('image');
+//        if ($file) {
+//            $filename = uniqid() . '.' . $file->guessExtension();
+//            $file->move($this->getParameter('book_images_directory'), $filename);
+//            $book->setThumbnail($filename);
+//        }
+
+        $decodedImageData = base64_decode($data['thumbnail']);
+
+        $filename = uniqid() . '.jpg';
+
+        $file = fopen($this->getParameter('book_images_directory') . $filename, 'w');
+
+        fwrite($file, $decodedImageData);
+
+        fclose($file);
+
+        $book->setThumbnail($filename);
+
+        // Set the user who added the book
+//        $user = $this->getUser();
+        $book->setOwner($entityManager->getRepository(User::class)->find(10));
+
+        // Save the book to the database
+        $entityManager->persist($book);
+        $entityManager->flush();
+
+        // Return a response to the front-end
+        return new JsonResponse(['message' => 'Book added successfully!']);
+    }
+
+    #[Route('/books/{id}/image', name: 'book_image')]
+    public function getBookImage(Book $book): Response
+    {
+        $imagePath = $this->getParameter('book_images_directory') . '/' . $book->getImage();
+
+        $response = new BinaryFileResponse($imagePath);
+        $response->headers->set('Content-Type', 'image/png'); // replace with the actual mime type of your image
+
+        return $response;
+    }
+
+    #[Route('/books', name: 'get_books')]
     public function getBooks(EntityManagerInterface $entityManager) : Response
     {
+        // Todo: get book by owner from usersession
         $books = $entityManager->getRepository(Book::class)->findBy(['owner' => 10]);
+
+        $this->getUser();
 
         $data = [];
 
         foreach ($books as $book) {
+            $thumbnail = $book->getThumbnail();
+
+            if(!str_contains($thumbnail, 'http'))
+            {
+                //            $path = $this->getParameter('book_images_directory').$thumbnail;
+                $file = fopen($this->getParameter('book_images_directory') . $thumbnail, 'r');
+
+                $thumbnailData = '';
+                if ($thumbnail) {
+                    $thumbnailData = base64_encode(stream_get_contents($file));
+                }
+            }
+            else
+                $thumbnailData = $thumbnail;
+
+
             $data[] = [
                 'id' => $book->getId(),
                 'title' => $book->getTitle(),
                 'author' => $book->getAuthor(),
-                'thumbnail' => $book->getThumbnail(),
+                'thumbnail' => $thumbnailData,
                 'description' => $book->getDescription(),
                 'status' => $book->isAvailable(),
+                'owner' => [
+                    'id' => $book->getOwner()->getId(),
+                    'username' => $book->getOwner()->getUsername()
+                ]
             ];
         }
 
@@ -71,7 +153,8 @@ class BookController extends AbstractController
     #[Route('/api/books/{id}/history', name: 'book_history')]
     public function getBookHistory(Book $book): Response
     {
-        $history = [];
+        // Todo: check if owner or admin
+
         $data = [
             "title" => $book->getTitle(),
             "img" => $book->getThumbnail()
@@ -102,6 +185,7 @@ class BookController extends AbstractController
     #[Route('/api/books/{id}/', name: 'book_update')]
     public function updateBook(Request $request, Book $book, EntityManagerInterface $entityManager): JsonResponse
     {
+        // Todo: check if owner by usersession
         $data = json_decode($request->getContent(), true);
         $book->setTitle($data['title'] ?? $book->getTitle());
         $book->setAuthor($data['author'] ?? $book->getAuthor());
@@ -124,7 +208,12 @@ class BookController extends AbstractController
         foreach ($books as $book) {
             $data[] = [
                 'id' => $book->getId(),
-                'owner' => $book->getOwner()->getUsername(),
+                'rating' => $book->getRating() ?? 0,
+                'owner' => [
+                    'id' => $book->getOwner()->getId(),
+                    'username' => $book->getOwner()->getUsername(),
+                    'rating' => $book->getOwner()->getRating()
+                ],
                 'title' => $book->getTitle(),
                 'author' => $book->getAuthor(),
                 'thumbnail' => $book->getThumbnail(),
@@ -140,6 +229,7 @@ class BookController extends AbstractController
     {
         $data = json_decode($request->getContent(), true);
         $bookRequest = new BookRequest();
+        // Todo: performed by UserSession
         $performedBy = $entityManager->getRepository(User::class)->find(10);
 
         $bookRequest->setBook($book);
@@ -154,6 +244,7 @@ class BookController extends AbstractController
 
         $bookHistory->setBook($book);
         $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
+        // Todo: Book requested
         $bookHistory->setAction(2);
         $bookHistory->setIsRequest(false);
         $bookHistory->setPerformedBy($performedBy);
@@ -169,6 +260,8 @@ class BookController extends AbstractController
     public function getBookRequests(EntityManagerInterface $entityManager): JsonResponse
     {
         $data = [];
+
+        // Todo: get requests by user session if owner
         $bookRequests = $entityManager->getRepository(BookRequest::class)->findBy(['isActive' => 1, 'isLent' => 0]);
 
         foreach ($bookRequests as $bookRequest) {
@@ -185,7 +278,11 @@ class BookController extends AbstractController
                 ],
                 'requestDate' => $bookRequest->getRequestDate(),
                 'returnDate' => $bookRequest->getReturnDate(),
-                'requestedBy' => $bookRequest->getRequestedBy()->getUsername()
+                'requestedBy' => [
+                    'id' => $bookRequest->getRequestedBy()->getId(),
+                    'username' => $bookRequest->getRequestedBy()->getUsername(),
+                    'rating' => $bookRequest->getRequestedBy()->getRating()
+                ]
             ];
         }
 
@@ -195,12 +292,14 @@ class BookController extends AbstractController
     #[Route('/books/requests/{id}/accept', name: 'book_lend_request_accept')]
     public function acceptRequest(BookRequest $bookRequest, EntityManagerInterface $entityManager): JsonResponse
     {
+        // Todo: performed by UserSession
         $performedBy = $entityManager->getRepository(User::class)->find(10);
         $bookHistory = new BookHistory();
         $book = $bookRequest->getBook();
 
         $bookHistory->setBook($bookRequest->getBook());
         $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
+        // Todo: book request accepted
         $bookHistory->setAction(3);
         $bookHistory->setIsRequest(false);
         $bookHistory->setPerformedBy($performedBy);
@@ -220,11 +319,13 @@ class BookController extends AbstractController
     #[Route('/books/requests/{id}/decline', name: 'book_lend_request_decline')]
     public function declineRequest(BookRequest $bookRequest, EntityManagerInterface $entityManager): JsonResponse
     {
+        // Todo: performed by UserSession
         $performedBy = $entityManager->getRepository(User::class)->find(10);
         $bookHistory = new BookHistory();
 
         $bookHistory->setBook($bookRequest->getBook());
         $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
+        // Todo: book request declined
         $bookHistory->setAction(4);
         $bookHistory->setIsRequest(false);
         $bookHistory->setPerformedBy($performedBy);
@@ -243,6 +344,7 @@ class BookController extends AbstractController
     {
         $listOwner = $entityManager->getRepository(User::class)->find(10);
 
+        // Todo: find by UserSession
         $requests = $entityManager->getRepository(BookRequest::class)->findBy(['requestedBy' => 10, 'isReturn' => 0,]);
 
         $data = [];
@@ -314,6 +416,7 @@ class BookController extends AbstractController
 
         $bookHistory->setBook($bookRequest->getBook());
         $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
+        // Todo: Return Requested
         $bookHistory->setAction(5);
         $bookHistory->setIsRequest(false);
         $bookHistory->setPerformedBy($entityManager->getRepository(User::class)->find(10));
@@ -339,6 +442,7 @@ class BookController extends AbstractController
     {
         $listOwner = $entityManager->getRepository(User::class)->find(10);
 
+        // Todo: find by user session
         $requests = $entityManager->getRepository(BookRequest::class)->findBy(['isReturn' => 1]);
 
         $data = [];
@@ -348,6 +452,7 @@ class BookController extends AbstractController
             $data[] = [
                 'id' => $request->getId(),
                 'bookId' =>$request->getBook()->getId(),
+                'ownerId' => $book->getOwner()->getId(),
                 'title' => $book->getTitle(),
                 'author' => $book->getAuthor(),
                 'thumbnail' => $book->getThumbnail(),
@@ -400,8 +505,10 @@ class BookController extends AbstractController
 
         $bookHistory->setBook($book);
         $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
+        // Todo: Return Accepted
         $bookHistory->setAction(6);
         $bookHistory->setIsRequest(false);
+        // Todo: user session
         $bookHistory->setPerformedBy($entityManager->getRepository(User::class)->find(10));
 
         $entities = [

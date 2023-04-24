@@ -5,6 +5,7 @@ namespace App\Entity;
 use App\Repository\BookRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: BookRepository::class)]
@@ -48,6 +49,9 @@ class Book
 
     #[ORM\Column(nullable: true)]
     private ?float $rating = null;
+
+    #[ORM\Column(type: Types::BLOB, nullable: true)]
+    private $image = null;
 
     public function __construct()
     {
@@ -243,6 +247,18 @@ class Book
     public function setRating(?float $rating): self
     {
         $this->rating = $rating;
+
+        return $this;
+    }
+
+    public function getImage()
+    {
+        return $this->image;
+    }
+
+    public function setImage($image): self
+    {
+        $this->image = $image;
 
         return $this;
     }

@@ -23,6 +23,16 @@ add_book:
     defaults:
         _format: json
 
+add_book_manual:
+    path: /books/add_book_manual
+    controller: App\Controller\BookController::addBookManual
+    methods: ['POST']
+
+book_image:
+    path: /books/{id}/image
+    controller: App\Controller\BookController::getBookImage
+    methods: ['GET']
+
 get_books:
     path: /books
     controller: App\Controller\BookController::getBooks
@@ -111,3 +121,36 @@ book_return_accept:
     path: /books/lent/{id_book}/{id_user}/{id_request}/accept
     controller: App\Controller\BookController::acceptRequest
     methods: [ POST ]
+
+get_user:
+    path: /users/{id}/
+    controller: App\Controller\UserController::getUserInfo
+    methods: ['GET']
+    defaults:
+        _format: json
+
+set_user_status:
+    path: /users/{id}/toggle-status
+    controller: App\Controller\UserController::setUserStatus
+    methods: [ 'POST' ]
+    requirements:
+        id: '\d+'
+
+report_person:
+    path: /users/report
+    controller: App\Controller\UserController::reportPerson
+    methods: [ 'POST' ]
+
+accept_return:
+    path: /reports/{id}/accept
+    controller: App\Controller\UserController:acceptReport
+    methods: [ 'POST' ]
+    requirements:
+        id: '\d+'
+
+decline_return:
+    path: /reports/{id}/decline
+    controller: App\Controller\UserController:declineReport
+    methods: [ 'POST' ]
+    requirements:
+        id: '\d+'

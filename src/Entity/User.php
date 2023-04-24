@@ -47,6 +47,21 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(nullable: true)]
     private ?float $rating = null;
 
+    #[ORM\Column(length: 255)]
+    private ?string $number = null;
+
+    #[ORM\Column(length: 255)]
+    private ?string $region = null;
+
+    #[ORM\Column(length: 255)]
+    private ?string $city = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $otherContacts = null;
+
+    #[ORM\Column]
+    private ?int $isActive = null;
+
     public function __construct()
     {
         $this->books = new ArrayCollection();
@@ -271,6 +286,66 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setRating(?float $rating): self
     {
         $this->rating = $rating;
+
+        return $this;
+    }
+
+    public function getNumber(): ?string
+    {
+        return $this->number;
+    }
+
+    public function setNumber(string $number): self
+    {
+        $this->number = $number;
+
+        return $this;
+    }
+
+    public function getRegion(): ?string
+    {
+        return $this->region;
+    }
+
+    public function setRegion(string $region): self
+    {
+        $this->region = $region;
+
+        return $this;
+    }
+
+    public function getCity(): ?string
+    {
+        return $this->city;
+    }
+
+    public function setCity(string $city): self
+    {
+        $this->city = $city;
+
+        return $this;
+    }
+
+    public function getOtherContacts(): ?string
+    {
+        return $this->otherContacts;
+    }
+
+    public function setOtherContacts(?string $otherContacts): self
+    {
+        $this->otherContacts = $otherContacts;
+
+        return $this;
+    }
+
+    public function getIsActive(): ?int
+    {
+        return $this->isActive;
+    }
+
+    public function setIsActive(int $isActive): self
+    {
+        $this->isActive = $isActive;
 
         return $this;
     }
