@@ -39,28 +39,35 @@ class BookRequestRepository extends ServiceEntityRepository
         }
     }
 
-//    /**
-//     * @return BookRequest[] Returns an array of BookRequest objects
-//     */
-//    public function findByExampleField($value): array
-//    {
-//        return $this->createQueryBuilder('b')
-//            ->andWhere('b.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->orderBy('b.id', 'ASC')
-//            ->setMaxResults(10)
-//            ->getQuery()
-//            ->getResult()
-//        ;
-//    }
+    public function getBookRequests(int $id)
+    {
+        $qb = $this->createQueryBuilder('br');
 
-//    public function findOneBySomeField($value): ?BookRequest
-//    {
-//        return $this->createQueryBuilder('b')
-//            ->andWhere('b.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->getQuery()
-//            ->getOneOrNullResult()
-//        ;
-//    }
+        $qb
+            ->select('br', 'b')
+            ->leftJoin('br.book', 'b')
+            ->where('b.owner = :userId')
+            ->andWhere('br.isActive = :isActive')
+            ->andWhere('br.isLent = :isLent')
+            ->setParameters(['userId' => $id, 'isActive' => 1, 'isLent' => 0]);
+
+        return $qb->getQuery()
+            ->getResult();
+    }
+
+    public function getMyLentBooks($id)
+    {
+        $qb = $this->createQueryBuilder('br');
+
+        $qb
+            ->select('br', 'b')
+            ->leftJoin('br.book', 'b')
+            ->where('b.owner = :userId')
+            ->andWhere('br.isLent = :isLent')
+            ->andWhere('br.isActive = :isActive')
+            ->setParameters(['userId' => $id, 'isActive' => 0, 'isLent' => 1]);
+
+        return $qb->getQuery()
+            ->getResult();
+    }
 }

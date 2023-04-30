@@ -53,6 +53,9 @@ class Book
     #[ORM\Column(type: Types::BLOB, nullable: true)]
     private $image = null;
 
+    #[ORM\Column(nullable: true)]
+    private ?string $isbn = null;
+
     public function __construct()
     {
         $this->bookHistories = new ArrayCollection();
@@ -259,6 +262,18 @@ class Book
     public function setImage($image): self
     {
         $this->image = $image;
+
+        return $this;
+    }
+
+    public function getIsbn(): ?string
+    {
+        return $this->isbn;
+    }
+
+    public function setIsbn(?string $isbn): self
+    {
+        $this->isbn = $isbn;
 
         return $this;
     }

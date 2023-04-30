@@ -6,6 +6,7 @@ use App\Entity\BookHistory;
 use App\Entity\BookRequest;
 use App\Entity\ReturnReport;
 use App\Entity\User;
+use App\Entity\UserReview;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -16,8 +17,21 @@ use Symfony\Component\Routing\Annotation\Route;
 class UserController extends AbstractController
 {
     #[Route('/users/{id}', name: 'get_user')]
-    public function getUserInfo(User $user): JsonResponse
+    public function getUserInfo(User $user, EntityManagerInterface $entityManager): JsonResponse
     {
+        $reviews = $entityManager->getRepository(UserReview::class)->findBy(['user' => $user->getId()]);
+
+        $reviewsData = [];
+
+        foreach ($reviews as $review)
+        {
+            $reviewsData[]= [
+                'rating' => $review->getRating(),
+                'review' => $review->getReview(),
+                'reviewedBy' => $review->getUser()->getUsername()
+                ];
+        }
+
         $data= [
             'username' => $user->getUsername(),
             'rating' =>$user->getRating(),
@@ -25,16 +39,25 @@ class UserController extends AbstractController
             'number' => $user->getNumber(),
             'region' => $user->getRegion(),
             'municipality' => $user->getCity(),
-            'other' => $user->getOtherContacts()
+            'other' => $user->getOtherContacts(),
+            'review' => $reviewsData
             ];
 
         return new JsonResponse($data);
+    }
+
+    #[Route('/user/role', name: 'get_role')]
+    public function getUserRole(): JsonResponse
+    {
+        return new JsonResponse($this->getUser()->getRoles());
     }
 
     #[Route('/users', name: 'get_users')]
     public function getUsers(EntityManagerInterface $entityManager): JsonResponse
     {
         // Todo: check if role admin
+
+//        return new JsonResponse($this->getUser()->getUserIdentifier());
 
         $data = [];
 

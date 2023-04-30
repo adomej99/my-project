@@ -39,28 +39,26 @@ class BookRepository extends ServiceEntityRepository
         }
     }
 
-//    /**
-//     * @return Book[] Returns an array of Book objects
-//     */
-//    public function findByExampleField($value): array
-//    {
-//        return $this->createQueryBuilder('b')
-//            ->andWhere('b.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->orderBy('b.id', 'ASC')
-//            ->setMaxResults(10)
-//            ->getQuery()
-//            ->getResult()
-//        ;
-//    }
+    public function getAvailableNotOwner(int $id, ?string $isbn)
+    {
 
-//    public function findOneBySomeField($value): ?Book
-//    {
-//        return $this->createQueryBuilder('b')
-//            ->andWhere('b.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->getQuery()
-//            ->getOneOrNullResult()
-//        ;
-//    }
+        $qb = $this->createQueryBuilder('u');
+        if($isbn)
+        {
+            $qb->where('u.owner != :identifier')
+                ->andwhere('u.available = :status')
+                ->andwhere('u.isbn = :isbn')
+                ->setParameters(array('status' => 1, 'identifier' => $id, 'isbn' => $isbn));
+        }
+        else
+        {
+            $qb->where('u.owner != :identifier')
+                ->andwhere('u.available = :status')
+                ->andwhere('u.isbn is NULL')
+                ->setParameters(array('status' => 1, 'identifier' => $id));
+        }
+
+        return $qb->getQuery()
+            ->getResult();
+    }
 }

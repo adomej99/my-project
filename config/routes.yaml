@@ -34,8 +34,15 @@ book_image:
     methods: ['GET']
 
 get_books:
-    path: /books
+    path: /books/
     controller: App\Controller\BookController::getBooks
+    methods: ['GET']
+    requirements:
+        isbn: '\d+'
+
+get_all_books:
+    path: /books/available
+    controller: App\Controller\BookController::getMainAvailableBooks
     methods: ['GET']
     defaults:
         _format: json
@@ -62,11 +69,11 @@ book_update:
         id: '\d+'
 
 book_lend_list:
-    path: /books/available
+    path: /books/available_isbn/{isbn}
     controller: App\Controller\BookController::getAvailableBooks
     methods: ['GET']
-    defaults:
-        _format: json
+    requirements:
+        isbn: '\d+'
 
 book_lend_request:
     path: /books/available/{id}
@@ -140,6 +147,21 @@ report_person:
     path: /users/report
     controller: App\Controller\UserController::reportPerson
     methods: [ 'POST' ]
+
+get_role:
+    path: /user/role
+    controller: App\Controller\UserController::getUserRole
+    methods: [ 'GET' ]
+
+my_lent:
+    path: /books/my_lent
+    controller: App\Controller\BookController::getMyLentBooks
+    methods: [ 'GET' ]
+
+expired_requests:
+    path: /requests/expired
+    controller: App\Controller\BookController::getExpiredRequests
+    methods: [ 'GET' ]
 
 accept_return:
     path: /reports/{id}/accept
