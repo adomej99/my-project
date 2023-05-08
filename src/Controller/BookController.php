@@ -3,12 +3,15 @@
 namespace App\Controller;
 
 use App\Entity\Book;
-use App\Entity\BookHistory;
 use App\Entity\BookRequest;
 use App\Entity\BookReview;
 use App\Entity\MainBookImage;
 use App\Entity\User;
 use App\Entity\UserReview;
+use App\Factory\BookFactory;
+use App\Factory\BookHistoryFactory;
+use App\Factory\ReviewFactory;
+use App\Model\ReviewModel;
 use Doctrine\ORM\EntityManagerInterface;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\ParamConverter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -18,18 +21,30 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 
 class BookController extends AbstractController
 {
 
     private EntityManagerInterface $entityManager;
-    private TokenStorageInterface $tokenStorage;
+    private $reviewFactory;
+    private $reviewModel;
+    private $bookHistoryFactory;
+    private $bookFactory;
 
-    public function __construct(EntityManagerInterface $entityManager, TokenStorageInterface $tokenStorage)
+
+    public function __construct(
+        BookHistoryFactory $bookHistoryFactory,
+        ReviewModel $reviewModel,
+        ReviewFactory $reviewFactory,
+        EntityManagerInterface $entityManager,
+        BookFactory $bookFactory,
+    )
     {
         $this->entityManager = $entityManager;
-        $this->tokenStorage = $tokenStorage;
+        $this->reviewFactory = $reviewFactory;
+        $this->reviewModel = $reviewModel;
+        $this->bookHistoryFactory = $bookHistoryFactory;
+        $this->bookFactory = $bookFactory;
     }
 
     public function getSessionUser(string $identifier)
@@ -37,63 +52,32 @@ class BookController extends AbstractController
         return $this->entityManager->getRepository(User::class)->findOneBy(['username' => $identifier]);
     }
     #[Route('/books/add_book', name: 'add_book')]
-    public function addBook(Request $request, EntityManagerInterface $entityManager) : Response
+    public function addBook(Request $request) : Response
     {
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
-
-        $book = new Book();
         $content = json_decode($request->getContent(), true);
-        $owner = $entityManager->getRepository(User::class)->find($currentUser->getId());
 
-        $book->setTitle($content['title']);
-        $book->setAuthor($content['author']);
-        $book->setThumbnail($content['thumbnail']);
-        $book->setDescription(substr($content['description'], 0, 250));
-        $book->setOwner($owner);
-        $book->setIsbn($content['isbn']);
+        $book = $this->bookFactory->createBook($currentUser,$content);
 
-        if(empty($entityManager->getRepository(MainBookImage::class)->findOneBy(['isbn' => $content['isbn']])))
+        if(empty($this->entityManager->getRepository(MainBookImage::class)->findOneBy(['isbn' => $content['isbn']])))
         {
-            $mainBookImage = new MainBookImage();
-
-            $mainBookImage->setIsbn($content['isbn']);
-            $mainBookImage->setImage($content['thumbnail']);
-            $mainBookImage->setTitle($content['title']);
-            $mainBookImage->setAuthor($content['author']);
-
-            $entityManager->persist($mainBookImage);
+            $this->bookFactory->createMainBook($content);
         }
 
+        $this->bookHistoryFactory->createHistory($currentUser, $book, 1, false);
 
-        $bookHistory = new BookHistory();
-
-        $bookHistory->setBook($book);
-        $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
-        $bookHistory->setAction(1);
-        $bookHistory->setIsRequest(false);
-        $bookHistory->setPerformedBy($owner);
-
-
-        $entityManager->persist($bookHistory);
-        $entityManager->persist($book);
-        $entityManager->flush();
+        $this->entityManager->persist($book);
+        $this->entityManager->flush();
 
         return $this->json(['message' => 'User created successfully']);
     }
 
     #[Route('/books/add_book_manual', name: 'add_book_manual')]
-    public function addBookManual(Request $request, EntityManagerInterface $entityManager): JsonResponse
+    public function addBookManual(Request $request): JsonResponse
     {
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
-        $owner = $entityManager->getRepository(User::class)->find($currentUser->getId());
 
         $data = $request->request->all();
-
-        $book = new Book();
-        $book->setTitle($data['title']);
-        $book->setAuthor($data['author']);
-        $book->setDescription($data['description']);
-        $book->setOwner($entityManager->getRepository(User::class)->find($owner->getId()));
 
         $decodedImageData = base64_decode($data['thumbnail']);
 
@@ -105,10 +89,11 @@ class BookController extends AbstractController
 
         fclose($file);
 
-        $book->setThumbnail($filename);
+        $data['thumbnail'] = $filename;
 
-        $entityManager->persist($book);
-        $entityManager->flush();
+        $book = $this->bookFactory->createBook($currentUser,$data);
+
+        $this->bookHistoryFactory->createHistory($currentUser, $book, 1, false);
 
         return new JsonResponse(['message' => 'Book added successfully!']);
     }
@@ -125,11 +110,14 @@ class BookController extends AbstractController
     }
 
     #[Route('/books/', name: 'get_books')]
-    public function getBooks() : Response
+    public function getBooks(Request $request) : Response
     {
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
 
-        $books = $this->entityManager->getRepository(Book::class)->findBy(['owner' => $currentUser->getId()]);
+        $searchQuery = $request->query->get('search');
+
+        $books = $this->entityManager->getRepository(Book::class)
+            ->searchByTitleAndAuthor($searchQuery, $currentUser->getId());
 
         $data = [];
 
@@ -198,46 +186,40 @@ class BookController extends AbstractController
     }
 
     #[Route('/api/books/{id}/', name: 'book_remove')]
-    public function removeBook(Book $book, EntityManagerInterface $entityManager): JsonResponse
+    public function removeBook(Book $book): JsonResponse
     {
-        $entityManager->remove($book);
-        $entityManager->flush();
+        $this->entityManager->remove($book);
+        $this->entityManager->flush();
 
         return new JsonResponse(['message' => 'Book removed successfully.'], Response::HTTP_OK);
     }
 
     #[Route('/api/books/{id}/', name: 'book_update')]
-    public function updateBook(Request $request, Book $book, EntityManagerInterface $entityManager): JsonResponse
+    public function updateBook(Request $request, Book $book): JsonResponse
     {
         // Todo: check if owner by usersession
         $data = json_decode($request->getContent(), true);
-        $book->setTitle($data['title'] ?? $book->getTitle());
-        $book->setAuthor($data['author'] ?? $book->getAuthor());
-        $book->setThumbnail($data['thumbnail'] ?? $book->getThumbnail());
-        $book->setDescription($data['description'] ?? $book->getDescription());
-        $book->setAvailable($data['status'] ?? $book->isAvailable());
 
-        $entityManager->flush();
+        $this->bookFactory->updateBook($data, $book);
 
         return new JsonResponse(['message' => 'Book updated successfully.'], Response::HTTP_OK);
     }
 
     #[Route('/books/available_isbn/{isbn}', name: 'book_list_lend')]
-    public function getAvailableBooks(EntityManagerInterface $entityManager, string $isbn): JsonResponse
+    public function getAvailableBooks(string $isbn): JsonResponse
     {
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
 
         if($isbn == 'noIsbn')
             $isbn = null;
 
-        $books = $entityManager->getRepository(Book::class)->getAvailableNotOwner($currentUser->getId(), $isbn);
+        $books = $this->entityManager->getRepository(Book::class)->getAvailableNotOwner($currentUser->getId(), $isbn);
 
         $data = [];
 
-
         foreach ($books as $book) {
 
-            $reviews = $entityManager->getRepository(BookReview::class)->findBy(['book' => $book->getId()]);
+            $reviews = $this->entityManager->getRepository(BookReview::class)->findBy(['book' => $book->getId()]);
 
             $reviewsData = [];
 
@@ -270,9 +252,17 @@ class BookController extends AbstractController
     }
 
     #[Route('/books/available', name: 'get_all_books')]
-    public function getMainAvailableBooks(EntityManagerInterface $entityManager): JsonResponse
+    public function getMainAvailableBooks(Request $request): JsonResponse
     {
-        $mainBooks = $entityManager->getRepository(MainBookImage::class)->findAll();
+        $searchQuery = $request->query->get('search');
+
+//        $mainBooks = $this->entityManager->getRepository(MainBookImage::class)->findAll();
+
+        if ($searchQuery) {
+            $mainBooks = $this->entityManager->getRepository(MainBookImage::class)->findMainByTitleOrAuthor($searchQuery);
+        } else {
+            $mainBooks = $this->entityManager->getRepository(MainBookImage::class)->findAll();
+        }
 
         $data = [];
 
@@ -290,12 +280,11 @@ class BookController extends AbstractController
     }
 
     #[Route('/books/available/{id}', name: 'book_lend_request')]
-    public function requestBook(Request $request, Book $book, EntityManagerInterface $entityManager): JsonResponse
+    public function requestBook(Request $request, Book $book): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
         $bookRequest = new BookRequest();
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
-        $performedBy = $entityManager->getRepository(User::class)->find($currentUser->getId());
 
         $bookRequest->setBook($book);
         $bookRequest->setRequestDate(date("Y-m-d h:i:sa"));
@@ -303,31 +292,24 @@ class BookController extends AbstractController
         $bookRequest->setIsActive(1);
         $bookRequest->setIsLent(0);
         $bookRequest->setIsReturn(0);
-        $bookRequest->setRequestedBy($performedBy);
+        $bookRequest->setRequestedBy($currentUser);
 
-        $bookHistory = new BookHistory();
-
-        $bookHistory->setBook($book);
-        $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
         // Todo: Book requested
-        $bookHistory->setAction(2);
-        $bookHistory->setIsRequest(false);
-        $bookHistory->setPerformedBy($performedBy);
+        $this->bookHistoryFactory->createHistory($currentUser, $bookRequest->getBook(), 2, false);
 
-        $entityManager->persist($bookHistory);
-        $entityManager->persist($bookRequest);
-        $entityManager->flush();
+        $this->entityManager->persist($bookRequest);
+        $this->entityManager->flush();
 
         return new JsonResponse(['message' => 'Book updated successfully.'], Response::HTTP_OK);
     }
 
     #[Route('/books/requests/', name: 'book_request_list')]
-    public function getBookRequests(EntityManagerInterface $entityManager): JsonResponse
+    public function getBookRequests(): JsonResponse
     {
         $data = [];
 
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
-        $bookRequests = $entityManager->getRepository(BookRequest::class)->getBookRequests($currentUser->getId());
+        $bookRequests = $this->entityManager->getRepository(BookRequest::class)->getBookRequests($currentUser->getId());
 
         foreach ($bookRequests as $bookRequest) {
             $book = $bookRequest->getBook();
@@ -356,33 +338,10 @@ class BookController extends AbstractController
     }
 
     #[Route('/requests/expired', name: 'expired_requests')]
-    public function getExpiredRequests(EntityManagerInterface $entityManager): JsonResponse
+    public function getExpiredRequests(): JsonResponse
     {
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
-        $requests = $entityManager->getRepository(BookRequest::class)->findBy(['requestedBy' => $currentUser->getId(), 'isLent'=> 1]);
-
-//        foreach ($bookRequests as $bookRequest) {
-//            $book = $bookRequest->getBook();
-//            $data[] = [
-//                'id' => $bookRequest->getId(),
-//                'book' => [
-//                    'id' => $book->getId(),
-//                    'title' => $book->getTitle(),
-//                    'author' => $book->getAuthor(),
-//                    'thumbnail' => $book->getThumbnail(),
-//                    'description' => $book->getDescription(),
-//                    'status' => $book->isAvailable(),
-//                ],
-//                'requestDate' => $bookRequest->getRequestDate(),
-//                'returnDate' => $bookRequest->getReturnDate(),
-//                'requestedBy' => [
-//                    'id' => $bookRequest->getRequestedBy()->getId(),
-//                    'username' => $bookRequest->getRequestedBy()->getUsername(),
-//                    'rating' => $bookRequest->getRequestedBy()->getRating(),
-//                    'phone' => $bookRequest->getRequestedBy()->getNumber()
-//                ]
-//            ];
-//        }
+        $requests = $this->entityManager->getRepository(BookRequest::class)->findBy(['requestedBy' => $currentUser->getId(), 'isLent'=> 1]);
 
         $now = new \DateTime();
 
@@ -408,62 +367,42 @@ class BookController extends AbstractController
     }
 
     #[Route('/books/requests/{id}/accept', name: 'book_lend_request_accept')]
-    public function acceptRequest(BookRequest $bookRequest, EntityManagerInterface $entityManager): JsonResponse
+    public function acceptRequest(BookRequest $bookRequest): JsonResponse
     {
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
 
-        $bookHistory = new BookHistory();
         $book = $bookRequest->getBook();
 
-        $bookHistory->setBook($bookRequest->getBook());
-        $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
         // Todo: book request accepted
-        $bookHistory->setAction(3);
-        $bookHistory->setIsRequest(false);
-        $bookHistory->setPerformedBy($currentUser);
+        $this->bookHistoryFactory->createHistory($currentUser, $bookRequest->getBook(), 3, false);
 
         $bookRequest->setIsActive(0);
         $bookRequest->setIsLent(1);
         $book->setAvailable(0);
         $book->setLendedTo($currentUser);
 
-        $entityManager->persist($book);
-        $entityManager->persist($bookHistory);
-        $entityManager->persist($bookRequest);
-        $entityManager->flush();
+        $this->entityManager->flush();
 
         return new JsonResponse(['message' => 'Book request accepted.'], Response::HTTP_OK);
     }
 
     #[Route('/books/requests/{id}/decline', name: 'book_lend_request_decline')]
-    public function declineRequest(BookRequest $bookRequest, EntityManagerInterface $entityManager): JsonResponse
+    public function declineRequest(BookRequest $bookRequest): JsonResponse
     {
-        // Todo: performed by UserSession
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
-        $performedBy = $entityManager->getRepository(User::class)->find($currentUser->getId());
-        $bookHistory = new BookHistory();
 
-        $bookHistory->setBook($bookRequest->getBook());
-        $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
-        // Todo: book request declined
-        $bookHistory->setAction(4);
-        $bookHistory->setIsRequest(false);
-        $bookHistory->setPerformedBy($performedBy);
+        $this->bookHistoryFactory->createHistory($currentUser, $bookRequest->getBook(), 4, false);
 
-        $bookRequest->setIsActive(0);
-
-        $entityManager->persist($bookHistory);
-        $entityManager->persist($bookRequest);
-        $entityManager->flush();
+        $this->entityManager->remove($bookRequest);
 
         return new JsonResponse(['message' => 'Book request accepted.'], Response::HTTP_OK);
     }
 
     #[Route('/books/lent', name: 'book_lent')]
-    public function getLentBooks(EntityManagerInterface $entityManager): JsonResponse
+    public function getLentBooks(): JsonResponse
     {
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
-        $requests = $entityManager->getRepository(BookRequest::class)->findBy(['requestedBy' => $currentUser->getId(), 'isReturn' => 0,]);
+        $requests = $this->entityManager->getRepository(BookRequest::class)->findBy(['requestedBy' => $currentUser->getId(), 'isReturn' => 0,]);
 
         $data = [];
 
@@ -482,79 +421,34 @@ class BookController extends AbstractController
     }
 
     #[Route('/books/lent/{id}/return', name: 'book_lent_return')]
-    public function returnBook(Request $request, EntityManagerInterface $entityManager, BookRequest $bookRequest): JsonResponse
+    public function returnBook(Request $request, BookRequest $bookRequest): JsonResponse
     {
-        $rating = 0;
-        $bookRating = 0;
-
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
         $data = json_decode($request->getContent(), true);
         $bookRequest->getBook()->setLendedTo(null);
         $bookRequest->setIsLent(0);
 
-        $reviews = $entityManager->getRepository(UserReview::class)->findBy(['user' => $bookRequest->getBook()->getOwner()->getId()]);
+        $reviews = $this->entityManager->getRepository(UserReview::class)->findBy(['user' => $bookRequest->getBook()->getOwner()->getId()]);
 
-        if(count($reviews) != 0)
-        {
-            foreach ($reviews as $review)
-                $rating = $rating + $review->getRating();
+        $bookRequest->getBook()->getOwner()->setRating($this->reviewModel->calculateRating($data, $reviews, 'lenderRating'));
 
-            $rating = ($rating + (int)$data['lenderRating']) / (count($reviews) + 1);
-        }
-        else
-            $rating = $rating + (int)$data['lenderRating'];
+        $bookReviews = $this->entityManager->getRepository(BookReview::class)->findBy(['book' => $bookRequest->getBook()]);
 
-        $bookRequest->getBook()->getOwner()->setRating($rating);
-
-        $bookReviews = $entityManager->getRepository(BookReview::class)->findBy(['book' => $bookRequest->getBook()]);
-
-        if(count($bookReviews) != 0)
-        {
-            foreach ($bookReviews as $review)
-                $bookRating = $bookRating + $review->getRating();
-
-            $bookRating = ($bookRating + (int)$data['bookRating']) / (count($bookReviews) + 1);
-        }
-        else
-            $bookRating = $bookRating + (int)$data['bookRating'];
-
-        $bookRequest->getBook()->setRating($bookRating);
+        $bookRequest->getBook()->setRating($this->reviewModel->calculateRating($data, $bookReviews, 'bookRating'));
 
         $userReview = new UserReview();
 
-        $userReview->setUser($bookRequest->getBook()->getOwner());
-        $userReview->setReview($data['lenderReview']);
-        $userReview->setRating((int)$data['lenderRating']);
+        $this->reviewFactory->createReview($bookRequest, $userReview, $currentUser, $data);
 
         $bookReview = new BookReview();
 
-        $bookReview->setbook($bookRequest->getBook());
-        $bookReview->setReview($data['bookReview']);
-        $bookReview->setRating((int)$data['bookRating']);
+        $this->reviewFactory->createReview($bookRequest, $bookReview, $currentUser, $data);
 
         $bookRequest->setIsReturn(1);
 
-        $bookHistory = new BookHistory();
+        $this->bookHistoryFactory->createHistory($currentUser, $bookRequest->getBook(), 5, false);
 
-        $bookHistory->setBook($bookRequest->getBook());
-        $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
-        // Todo: Return Requested
-        $bookHistory->setAction(5);
-        $bookHistory->setIsRequest(false);
-        $bookHistory->setPerformedBy($entityManager->getRepository(User::class)->find($currentUser->getId()));
-
-        $entities = [
-          $bookHistory,
-          $bookReview,
-          $userReview
-        ];
-
-        foreach ($entities as $entity)
-        {
-            $entityManager->persist($entity);
-        }
-
-        $entityManager->flush();
+        $this->entityManager->flush();
 
         return new JsonResponse(['message' => 'Book request accepted.'], Response::HTTP_OK);
     }
@@ -670,7 +564,7 @@ class BookController extends AbstractController
         $entityManager->getRepository(BookRequest::class)->remove($bookRequest);
         $entityManager->flush();
 
-        return new JsonResponse(['message' => 'Book request accepted.'], Response::HTTP_OK);;
+        return new JsonResponse(['message' => 'Book request accepted.'], Response::HTTP_OK);
     }
 
     /**
@@ -682,54 +576,21 @@ class BookController extends AbstractController
      */
     public function acceptReturnedBook(Request $request, Book $book, User $user, BookRequest $bookRequest, EntityManagerInterface $entityManager): JsonResponse
     {
-        $rating = 0;
-
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
         $data = json_decode($request->getContent(), true);
         $reviews = $entityManager->getRepository(UserReview::class)->findBy(['user' => $user->getId()]);
 
-        if(count($reviews) != 0)
-        {
-            foreach ($reviews as $review)
-                $rating = $rating + $review->getRating();
+        $user->setRating($this->reviewModel->calculateRating($data, $reviews, 'lenderRating'));
 
-            $rating = ($rating + (int)$data['lenderRating']) / (count($reviews) + 1);
-        }
-        else
-            $rating = $rating + (int)$data['lenderRating'];
-
-        $user->setRating($rating);
-
-        $userReview = new UserReview();
-
-        $userReview->setUser($user);
-        $userReview->setReview($data['lenderReview']);
-        $userReview->setRating((int)$data['lenderRating']);
+        $this->reviewFactory->returnBookReview($user, $data, $currentUser);
 
         $book->setAvailable(1);
         $bookRequest->setIsReturn(0);
 
-        $bookHistory = new BookHistory();
-
-        $bookHistory->setBook($book);
-        $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
         // Todo: Return Accepted
-        $bookHistory->setAction(6);
-        $bookHistory->setIsRequest(false);
-        // Todo: user session
-        $bookHistory->setPerformedBy($currentUser);
+        $this->bookHistoryFactory->createHistory($currentUser, $bookRequest->getBook(), 6, false);
 
-        $entities = [
-            $bookHistory,
-            $userReview
-        ];
-
-        foreach ($entities as $entity)
-        {
-            $entityManager->persist($entity);
-        }
-
-        $entityManager->flush();
+        $this->entityManager->flush();
 
         return new JsonResponse(['message' => 'Book request accepted.'], Response::HTTP_OK);
     }

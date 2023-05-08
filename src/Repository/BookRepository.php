@@ -61,4 +61,20 @@ class BookRepository extends ServiceEntityRepository
         return $qb->getQuery()
             ->getResult();
     }
+
+    public function searchByTitleAndAuthor($searchQuery, $userId)
+    {
+        $qb = $this->createQueryBuilder('b')
+            ->where('b.owner = :userId')
+            ->setParameter('userId', $userId);
+
+        if (!empty($searchQuery)) {
+            $qb->andWhere($qb->expr()->orX(
+                $qb->expr()->like('b.Title', ':search'),
+                $qb->expr()->like('b.Author', ':search')
+            ))->setParameter('search', "%{$searchQuery}%");
+        }
+
+        return $qb->getQuery()->getResult();
+    }
 }

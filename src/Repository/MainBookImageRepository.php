@@ -39,28 +39,12 @@ class MainBookImageRepository extends ServiceEntityRepository
         }
     }
 
-//    /**
-//     * @return MainBookImage[] Returns an array of MainBookImage objects
-//     */
-//    public function findByExampleField($value): array
-//    {
-//        return $this->createQueryBuilder('m')
-//            ->andWhere('m.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->orderBy('m.id', 'ASC')
-//            ->setMaxResults(10)
-//            ->getQuery()
-//            ->getResult()
-//        ;
-//    }
+    public function findMainByTitleOrAuthor(string $searchQuery)
+    {
+        $qb = $this->createQueryBuilder('b')
+            ->where('b.title LIKE :searchQuery OR b.author LIKE :searchQuery')
+            ->setParameter('searchQuery', "%{$searchQuery}%");
 
-//    public function findOneBySomeField($value): ?MainBookImage
-//    {
-//        return $this->createQueryBuilder('m')
-//            ->andWhere('m.exampleField = :val')
-//            ->setParameter('val', $value)
-//            ->getQuery()
-//            ->getOneOrNullResult()
-//        ;
-//    }
+        return $qb->getQuery()->getResult();
+    }
 }

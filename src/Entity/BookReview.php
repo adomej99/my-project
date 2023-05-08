@@ -2,11 +2,13 @@
 
 namespace App\Entity;
 
+use App\Factory\ReviewFactoryInterface;
 use App\Repository\BookReviewRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 #[ORM\Entity(repositoryClass: BookReviewRepository::class)]
-class BookReview
+class BookReview implements ReviewFactoryInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -73,7 +75,7 @@ class BookReview
         return $this->reviewedBy;
     }
 
-    public function setReviewedBy(?User $reviewedBy): self
+    public function setReviewedBy(?UserInterface $reviewedBy): self
     {
         $this->reviewedBy = $reviewedBy;
 
