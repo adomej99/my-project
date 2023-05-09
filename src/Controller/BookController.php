@@ -91,6 +91,11 @@ class BookController extends AbstractController
 
         $data['thumbnail'] = $filename;
 
+        if( !empty($data['isbn']) && empty($this->entityManager->getRepository(MainBookImage::class)->findOneBy(['isbn' => $data['isbn']])))
+        {
+            $this->bookFactory->createMainBook($data);
+        }
+
         $book = $this->bookFactory->createBook($currentUser,$data);
 
         $this->bookHistoryFactory->createHistory($currentUser, $book, 1, false);

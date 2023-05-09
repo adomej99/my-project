@@ -137,8 +137,8 @@ class UserController extends AbstractController
                 'reportId' => $report->getId(),
                 'user' => $report->getUser()->getUsername(),
                 'userId' => $report->getUser()->getId(),
-                'returnedBy' => $report->getUser()->getUsername(),
-                'returnedById' => $report->getUser()->getId(),
+                'returnedBy' => $report->getReturnedBy()->getUsername(),
+                'returnedById' => $report->getReturnedBy()->getId(),
                 'report' => $report->getReport(),
                 'date' => $report->getDate()
             ];
@@ -158,8 +158,8 @@ class UserController extends AbstractController
             $data[] = [
                 'user' => $report->getUser()->getUsername(),
                 'userId' => $report->getUser()->getId(),
-                'returnedBy' => $report->getUser()->getUsername(),
-                'returnedById' => $report->getUser()->getId(),
+                'returnedBy' => $report->getReturnedBy()->getUsername(),
+                'returnedById' => $report->getReturnedBy()->getId(),
                 'report' => $report->getReport(),
                 'date' => $report->getDate()
             ];
