@@ -16,10 +16,18 @@ use Symfony\Component\Routing\Annotation\Route;
 
 class UserController extends AbstractController
 {
-    #[Route('/users/{id}', name: 'get_user')]
-    public function getUserInfo(User $user, EntityManagerInterface $entityManager): JsonResponse
+    private EntityManagerInterface $entityManager;
+
+    public function __construct(
+        EntityManagerInterface $entityManager,
+    )
     {
-        $reviews = $entityManager->getRepository(UserReview::class)->findBy(['user' => $user->getId()]);
+        $this->entityManager = $entityManager;
+    }
+    #[Route('/users/{id}', name: 'get_user')]
+    public function getUserInfo(User $user): JsonResponse
+    {
+        $reviews = $this->entityManager->getRepository(UserReview::class)->findBy(['user' => $user->getId()]);
 
         $reviewsData = [];
 
@@ -53,15 +61,13 @@ class UserController extends AbstractController
     }
 
     #[Route('/users', name: 'get_users')]
-    public function getUsers(EntityManagerInterface $entityManager): JsonResponse
+    public function getUsers(): JsonResponse
     {
         // Todo: check if role admin
 
-//        return new JsonResponse($this->getUser()->getUserIdentifier());
-
         $data = [];
 
-        $users = $entityManager->getRepository(User::class)->findAll();
+        $users = $this->entityManager->getRepository(User::class)->findAll();
 
         foreach ($users as $user)
         {
@@ -76,27 +82,27 @@ class UserController extends AbstractController
     }
 
     #[Route('/users/{id}/toggle-status', name: 'set_user_status')]
-    public function setUserStatus(EntityManagerInterface $entityManager, User $user): JsonResponse
+    public function setUserStatus(User $user): JsonResponse
     {
         if($user->getIsActive() == 1)
             $user->setIsActive(0);
         else
             $user->setIsActive(1);
 
-        $entityManager->flush();
+        $this->entityManager->flush();
 
         return new JsonResponse(['message' => 'Book request accepted.'], Response::HTTP_OK);
     }
 
     #[Route('/users/report', name: 'report_person')]
-    public function reportPerson(EntityManagerInterface $entityManager, Request $request): JsonResponse
+    public function reportPerson(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
 
         // Todo: user session
-        $reportedBy = $entityManager->getRepository(User::class)->find((int)$data['reportedBy']);
-        $reportedPerson = $entityManager->getRepository(User::class)->find((int)$data['reportedPerson']);
-        $bookRequest = $entityManager->getRepository(BookRequest::class)->find((int)$data['requestId']);
+        $reportedBy = $this->entityManager->getRepository(User::class)->find((int)$data['reportedBy']);
+        $reportedPerson = $this->entityManager->getRepository(User::class)->find((int)$data['reportedPerson']);
+        $bookRequest = $this->entityManager->getRepository(BookRequest::class)->find((int)$data['requestId']);
 
         $report = new ReturnReport();
 
@@ -116,21 +122,21 @@ class UserController extends AbstractController
         $bookHistory->setAction(7);
         $bookHistory->setIsRequest(false);
         // Todo: UserSession
-        $bookHistory->setPerformedBy($entityManager->getRepository(User::class)->find(10));
+        $bookHistory->setPerformedBy($this->entityManager->getRepository(User::class)->find(10));
 
-        $entityManager->persist($report);
-        $entityManager->persist($bookHistory);
-        $entityManager->flush();
+        $this->entityManager->persist($report);
+        $this->entityManager->persist($bookHistory);
+        $this->entityManager->flush();
 
         return new JsonResponse(['message' => 'OK'], Response::HTTP_OK);
     }
 
     #[Route('/reports', name: 'get_reports')]
-    public function getAllReports(EntityManagerInterface $entityManager): JsonResponse
+    public function getAllReports(): JsonResponse
     {
         $data = [];
 
-        $reports = $entityManager->getRepository(ReturnReport::class)->findAll();
+        $reports = $this->entityManager->getRepository(ReturnReport::class)->findAll();
 
         foreach ($reports as $report) {
             $data[] = [
@@ -148,11 +154,11 @@ class UserController extends AbstractController
     }
 
     #[Route('/reports/{id}', name: 'get_report')]
-    public function getReports(EntityManagerInterface $entityManager, User $user): JsonResponse
+    public function getReports(User $user): JsonResponse
     {
         $data = [];
 
-        $reports = $entityManager->getRepository(ReturnReport::class)->findBy(['returnedBy' => $user->getId()]);
+        $reports = $this->entityManager->getRepository(ReturnReport::class)->findBy(['returnedBy' => $user->getId()]);
 
         foreach ($reports as $report) {
             $data[] = [
@@ -169,20 +175,20 @@ class UserController extends AbstractController
     }
 
     #[Route('/reports/{id}/accept', name: 'accept_report')]
-    public function acceptReport(EntityManagerInterface $entityManager, ReturnReport $report): JsonResponse
+    public function acceptReport(ReturnReport $report): JsonResponse
     {
         $report->getUser()->setIsActive(0);
-        $entityManager->remove($report);
-        $entityManager->flush();
+        $this->entityManager->remove($report);
+        $this->entityManager->flush();
 
         return new JsonResponse(['message' => 'OK'], Response::HTTP_OK);
     }
 
     #[Route('/reports/{id}/decline', name: 'decline_report')]
-    public function declineReport(EntityManagerInterface $entityManager, ReturnReport $report): JsonResponse
+    public function declineReport(ReturnReport $report): JsonResponse
     {
-        $entityManager->remove($report);
-        $entityManager->flush();
+        $this->entityManager->remove($report);
+        $this->entityManager->flush();
 
         return new JsonResponse(['message' => 'OK'], Response::HTTP_OK);
     }

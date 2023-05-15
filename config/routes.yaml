@@ -77,28 +77,28 @@ book_lend_list:
 
 book_lend_request:
     path: /books/available/{id}
-    controller: App\Controller\BookController::requestBook
+    controller: App\Controller\RequestsController::requestBook
     methods: [ POST ]
     requirements:
         id: '\d+'
 
 book_request_list:
     path: /books/requests
-    controller: App\Controller\BookController::getBookRequests
+    controller: App\Controller\RequestsController::getBookRequests
     methods: ['GET']
     defaults:
         _format: json
 
 book_lend_request_accept:
     path: /books/requests/{id}/accept
-    controller: App\Controller\BookController::acceptRequest
+    controller: App\Controller\RequestsController::acceptRequest
     methods: [ POST ]
     requirements:
         id: '\d+'
 
 book_lend_request_decline:
     path: /books/requests/{id}/decline
-    controller: App\Controller\BookController::declineRequest
+    controller: App\Controller\RequestsController::declineRequest
     methods: [ POST ]
     requirements:
         id: '\d+'
@@ -126,7 +126,7 @@ book_returned:
 
 book_return_accept:
     path: /books/lent/{id_book}/{id_user}/{id_request}/accept
-    controller: App\Controller\BookController::acceptRequest
+    controller: App\Controller\RequestsController::acceptRequest
     methods: [ POST ]
 
 get_user:
@@ -160,7 +160,7 @@ my_lent:
 
 expired_requests:
     path: /requests/expired
-    controller: App\Controller\BookController::getExpiredRequests
+    controller: App\Controller\RequestsController::getExpiredRequests
     methods: [ 'GET' ]
 
 accept_return:
