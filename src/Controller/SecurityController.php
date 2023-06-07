@@ -4,7 +4,6 @@ namespace App\Controller;
 
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
-use Doctrine\Persistence\ManagerRegistry as PersistenceManagerRegistry;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -45,12 +44,11 @@ class SecurityController extends AbstractController
 
         $token = $jwtManager->create($user);
 
-        // TODO: Return the session data to the Vue.js project
         return $this->json(['token' => $token]);
     }
 
     #[Route('/register', name: 'app_register')]
-    public function register(Request $request, UserPasswordHasherInterface $userPasswordHasher): Response
+    public function register(Request $request, JWTTokenManagerInterface $jwtManager, UserPasswordHasherInterface $userPasswordHasher): Response
     {
         $user = new User();
 
@@ -74,11 +72,19 @@ class SecurityController extends AbstractController
 
         $user->setIsActive(1);
 
+        $check = $this->entityManager->getRepository(User::class)->findBy(['username' => $user->getUsername()]);
+
+        if(!empty($check))
+        {
+            return $this->json(['error' => 'User with this username already exists']);
+        }
+
         $this->entityManager->persist($user);
         $this->entityManager->flush();
-        // do anything else you need here, like send an email
 
-        return $this->json(['message' => 'User created successfully']);
+        $token = $jwtManager->create($user);
+
+        return $this->json(['token' => $token]);
     }
 
     #[Route(path: '/logout', name: 'app_logout')]

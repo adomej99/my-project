@@ -47,7 +47,6 @@ class RequestsController extends AbstractController
         $bookRequest->setIsReturn(0);
         $bookRequest->setRequestedBy($currentUser);
 
-        // Todo: Book requested
         $this->bookHistoryFactory->createHistory($currentUser, $bookRequest->getBook(), 2, false);
 
         $this->entityManager->persist($bookRequest);
@@ -101,13 +100,10 @@ class RequestsController extends AbstractController
         $expiringRequests = [];
 
         foreach ($requests as $request) {
-            // Convert the return date string to a DateTime object
             $returnDate = new \DateTime($request->getReturnDate());
 
-            // Calculate the difference between the return date and the current date
             $diff = $returnDate->diff($now);
 
-            // Check if the difference is less than or equal to 1 day
             if ($diff->days <= 1) {
                 $expiringRequests[] = [
                     'title' => $request->getBook()->getTitle(),
@@ -126,7 +122,6 @@ class RequestsController extends AbstractController
 
         $book = $bookRequest->getBook();
 
-        // Todo: book request accepted
         $this->bookHistoryFactory->createHistory($currentUser, $bookRequest->getBook(), 3, false);
 
         $bookRequest->setIsActive(0);
@@ -154,10 +149,6 @@ class RequestsController extends AbstractController
     #[Route('/request/pending/cancel/{id}', name: 'cancel_request')]
     public function cancelPendingRequest(EntityManagerInterface $entityManager, BookRequest $bookRequest): JsonResponse
     {
-        $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
-
-        // Todo: if owner
-
         $entityManager->getRepository(BookRequest::class)->remove($bookRequest);
         $entityManager->flush();
 

@@ -63,8 +63,6 @@ class UserController extends AbstractController
     #[Route('/users', name: 'get_users')]
     public function getUsers(): JsonResponse
     {
-        // Todo: check if role admin
-
         $data = [];
 
         $users = $this->entityManager->getRepository(User::class)->findAll();
@@ -118,10 +116,8 @@ class UserController extends AbstractController
 
         $bookHistory->setBook($bookRequest->getBook());
         $bookHistory->setDateCreated(date("Y-m-d h:i:sa"));
-        // Todo: Unavailable due to report
         $bookHistory->setAction(7);
         $bookHistory->setIsRequest(false);
-        // Todo: UserSession
         $bookHistory->setPerformedBy($this->entityManager->getRepository(User::class)->find(10));
 
         $this->entityManager->persist($report);

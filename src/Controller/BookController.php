@@ -16,6 +16,8 @@ use Doctrine\ORM\EntityManagerInterface;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\ParamConverter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\File\Exception\FileException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -83,35 +85,75 @@ class BookController extends AbstractController
 
         $filename = uniqid() . '.jpg';
 
-        $file = fopen($this->getParameter('book_images_directory') . $filename, 'w');
+        $filePath = $this->getParameter('book_images_directory') . $filename;
 
-        fwrite($file, $decodedImageData);
-
-        fclose($file);
+        file_put_contents($filePath, $decodedImageData);
 
         $data['thumbnail'] = $filename;
 
-        if( !empty($data['isbn']) && empty($this->entityManager->getRepository(MainBookImage::class)->findOneBy(['isbn' => $data['isbn']])))
-        {
+        if (!empty($data['isbn']) && empty($this->entityManager->getRepository(MainBookImage::class)->findOneBy(['isbn' => $data['isbn']]))) {
             $this->bookFactory->createMainBook($data);
         }
 
-        $book = $this->bookFactory->createBook($currentUser,$data);
+        $book = $this->bookFactory->createBook($currentUser, $data);
 
         $this->bookHistoryFactory->createHistory($currentUser, $book, 1, false);
 
         return new JsonResponse(['message' => 'Book added successfully!']);
     }
 
+//    #[Route('/books/add_book_manual', name: 'add_book_manual')]
+//    public function addBookManual(Request $request): JsonResponse
+//    {
+//        $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
+//
+//        $data = $request->request->all();
+//
+//        // Handle file upload
+//        /** @var UploadedFile $uploadedFile */
+//        $uploadedFile = $request->files->get('thumbnail');
+//
+//        if ($uploadedFile) {
+//            try {
+//                $filename = uniqid().'.'.$uploadedFile->guessExtension();
+//                $uploadedFile->move($this->getParameter('book_images_directory'), $filename);
+//                $data['thumbnail'] = $filename;
+//            } catch (FileException $e) {
+//                return new JsonResponse(['error' => $e->getMessage()], 500);
+//            }
+//        }
+//
+//        if (!empty($data['isbn']) && empty($this->entityManager->getRepository(MainBookImage::class)->findOneBy(['isbn' => $data['isbn']]))) {
+//            $this->bookFactory->createMainBook($data);
+//        }
+//
+//        $book = $this->bookFactory->createBook($currentUser, $data);
+//
+//        $this->bookHistoryFactory->createHistory($currentUser, $book, 1, false);
+//
+//        return new JsonResponse(['message' => 'Book added successfully!']);
+//    }
+
     #[Route('/books/{id}/image', name: 'book_image')]
     public function getBookImage(Book $book): Response
     {
-        $imagePath = $this->getParameter('book_images_directory') . '/' . $book->getImage();
+        $filePath = $this->getParameter('book_images_directory') . $book->getThumbnail();
 
-        $response = new BinaryFileResponse($imagePath);
-        $response->headers->set('Content-Type', 'image/png'); // replace with the actual mime type of your image
+        $fileContents = file_get_contents($filePath);
+        $base64Image = base64_encode($fileContents);
 
-        return $response;
+        return new JsonResponse(['photoUrl' => $base64Image]);
+    }
+
+    #[Route('/books/{id}/main/image', name: 'book_main_image')]
+    public function getMainBookImage(MainBookImage $book): Response
+    {
+        $filePath = $this->getParameter('book_images_directory') . $book->getImage();
+
+        $fileContents = file_get_contents($filePath);
+        $base64Image = base64_encode($fileContents);
+
+        return new JsonResponse(['photoUrl' => $base64Image]);
     }
 
     #[Route('/books/', name: 'get_books')]
@@ -128,10 +170,6 @@ class BookController extends AbstractController
         else {
             $books = $this->entityManager->getRepository(Book::class)->findBy(['owner'=>$currentUser->getId()]);
         }
-
-
-//        $books = $this->entityManager->getRepository(Book::class)
-//            ->searchByTitleAndAuthor($searchQuery, $currentUser->getId());
 
         $data = [];
 
@@ -171,7 +209,6 @@ class BookController extends AbstractController
     #[Route('/api/books/{id}/history', name: 'book_history')]
     public function getBookHistory(Book $book): Response
     {
-        // Todo: check if owner or admin
         $currentUser = $this->getSessionUser($this->getUser()->getUserIdentifier());
 
 
@@ -211,7 +248,6 @@ class BookController extends AbstractController
     #[Route('/api/books/{id}/', name: 'book_update')]
     public function updateBook(Request $request, Book $book): JsonResponse
     {
-        // Todo: check if owner by usersession
         $data = json_decode($request->getContent(), true);
 
         $this->bookFactory->updateBook($data, $book);
@@ -270,8 +306,6 @@ class BookController extends AbstractController
     {
         $searchQuery = $request->query->get('search');
 
-//        $mainBooks = $this->entityManager->getRepository(MainBookImage::class)->findAll();
-
         if ($searchQuery) {
             $mainBooks = $this->entityManager->getRepository(MainBookImage::class)->findMainByTitleOrAuthor($searchQuery);
         } else {
@@ -283,6 +317,7 @@ class BookController extends AbstractController
         foreach ($mainBooks as $mainBook)
         {
             $data[] = [
+                'id' => $mainBook->getId(),
                 'isbn' => $mainBook->getIsbn(),
                 'title' => $mainBook->getTitle(),
                 'author' => $mainBook->getAuthor(),
@@ -469,7 +504,6 @@ class BookController extends AbstractController
         $book->setAvailable(1);
         $bookRequest->setIsReturn(0);
 
-        // Todo: Return Accepted
         $this->bookHistoryFactory->createHistory($currentUser, $bookRequest->getBook(), 6, false);
 
         $this->entityManager->flush();
